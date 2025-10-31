@@ -21,7 +21,7 @@ app.post(['/remove-bg', '/remove'], upload.single('image'), async (req, res) => 
     const auth = (process.env.TARGET_AUTH || 'basic').toLowerCase();
 
     if (!url) return res.status(500).json({ error: 'TARGET_URL missing' });
-    if (!req.file) return res.status(400).json({ error: 'No file provided (field must be "image")' });
+    if (!req.file) return res.status(400).json({ error: 'No file provided (field must be \"image\")' });
 
     // Upstream field mapping
     const upstreamField = auth === 'clipdrop' ? 'image_file' : 'image';
@@ -32,7 +32,7 @@ app.post(['/remove-bg', '/remove'], upload.single('image'), async (req, res) => 
       contentType: req.file.mimetype || 'image/png'
     });
 
-    // Add auth headers
+    // Auth headers
     const headers = { ...form.getHeaders() };
     if (auth === 'clipdrop') {
       if (!process.env.CLIPDROP_API_KEY) return res.status(500).json({ error: 'CLIPDROP_API_KEY missing' });
