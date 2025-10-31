@@ -1,5 +1,10 @@
-// Minimal HTTPS proxy for background removal (Store-safe client)
-// Env: TARGET_URL, API_ID, API_SECRET, PORT (Render sets PORT)
+// HTTPS proxy for BG removal; supports ClipDrop (x-api-key) and Basic auth providers.
+// Env:
+//   TARGET_URL = upstream endpoint (e.g., https://clipdrop-api.co/remove-background/v1)
+//   TARGET_AUTH = clipdrop | basic   (default: basic)
+//   CLIPDROP_API_KEY = <for clipdrop>
+//   API_ID / API_SECRET = <for basic>
+//   PORT = (set by Render)
 const express = require('express');
 const multer = require('multer');
 const FormData = require('form-data');
@@ -12,26 +17,35 @@ app.get('/health', (_, res) => res.json({ ok: true }));
 
 app.post(['/remove-bg', '/remove'], upload.single('image'), async (req, res) => {
   try {
-    if (!process.env.TARGET_URL || !process.env.API_ID || !process.env.API_SECRET) {
-      return res.status(500).json({ error: 'Server not configured' });
-    }
-    const file = req.file;
-    if (!file) return res.status(400).json({ error: 'No file provided (field name should be \"image\")' });
+    const url = process.env.TARGET_URL;
+    const auth = (process.env.TARGET_AUTH || 'basic').toLowerCase();
+
+    if (!url) return res.status(500).json({ error: 'TARGET_URL missing' });
+    if (!req.file) return res.status(400).json({ error: 'No file provided (field must be "image")' });
+
+    // Upstream field mapping
+    const upstreamField = auth === 'clipdrop' ? 'image_file' : 'image';
 
     const form = new FormData();
-    form.append('image', file.buffer, { filename: 'input.png', contentType: file.mimetype || 'image/png' });
-
-    // Zarurat ho to uncomment:
-    // form.append('background', 'transparent');
-
-    const basic = Buffer.from(`${process.env.API_ID}:${process.env.API_SECRET}`).toString('base64');
-    const upstream = await fetch(process.env.TARGET_URL, {
-      method: 'POST',
-      headers: { Authorization: `Basic ${basic}`, ...form.getHeaders() },
-      body: form,
+    form.append(upstreamField, req.file.buffer, {
+      filename: 'input.png',
+      contentType: req.file.mimetype || 'image/png'
     });
 
+    // Add auth headers
+    const headers = { ...form.getHeaders() };
+    if (auth === 'clipdrop') {
+      if (!process.env.CLIPDROP_API_KEY) return res.status(500).json({ error: 'CLIPDROP_API_KEY missing' });
+      headers['x-api-key'] = process.env.CLIPDROP_API_KEY;
+    } else {
+      if (!process.env.API_ID || !process.env.API_SECRET) return res.status(500).json({ error: 'API_ID/API_SECRET missing' });
+      const basic = Buffer.from(`${process.env.API_ID}:${process.env.API_SECRET}`).toString('base64');
+      headers['Authorization'] = `Basic ${basic}`;
+    }
+
+    const upstream = await fetch(url, { method: 'POST', headers, body: form });
     const ct = upstream.headers.get('content-type') || '';
+
     if (!upstream.ok) {
       const errText = await upstream.text().catch(() => '');
       return res.status(upstream.status).type('text/plain').send(errText || `Upstream error ${upstream.status}`);
