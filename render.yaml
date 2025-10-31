@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: magiccut-proxy
+    env: node
+    plan: free
+    buildCommand: npm i
+    startCommand: node index.js
+    envVars:
+      - key: TARGET_URL
+        value: https://REPLACE-WITH-YOUR-UPSTREAM-ENDPOINT
+      - key: API_ID
+        value: "24628"
+      - key: API_SECRET
+        value: "7rplnkcrpqctforuqink39tp5i8ib588m7h0kgge6a0rdpk6p7dl"
